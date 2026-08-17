@@ -6,36 +6,17 @@ Rule-based multilingual phishing detection engine.
 
 Supported:
     - English
-    - Hindi (Devanagari)
+    - Hindi
     - Hinglish
     - Telugu
     - Tamil
-
-Detection:
-    - Urgency / pressure
-    - OTP / PIN / CVV requests
-    - KYC scams
-    - Prize / lottery scams
-    - Fake legal / police threats
-    - Fake job / easy-money offers
-    - Refund scams
-    - Account blocking threats
-    - Brand impersonation
-    - Suspicious URLs
-    - URL shorteners
-    - Raw IP addresses
-    - Suspicious TLDs
-    - Excessive subdomains
-    - Look-alike domains
-    - Excessive punctuation
-
-The returned structure is intentionally stable so that the
-FastAPI layer and React frontend do not need to change.
 
 Main functions:
     analyze_text(text)
     analyze_url(url)
     extract_urls(text)
+
+Returns stable structures for the FastAPI backend.
 """
 
 import re
@@ -49,7 +30,6 @@ from urllib.parse import urlparse
 MAX_SCORE = 100
 MAX_REASONS = 7
 
-# Risk thresholds
 HIGH_RISK_THRESHOLD = 55
 MEDIUM_RISK_THRESHOLD = 25
 
@@ -102,6 +82,74 @@ BRAND_RE = re.compile(
 
 
 # ============================================================================
+# OFFICIAL BRAND DOMAINS
+# ============================================================================
+
+OFFICIAL_BRAND_DOMAINS = {
+    "sbi": {
+        "sbi.co.in",
+    },
+    "hdfc": {
+        "hdfcbank.com",
+    },
+    "icici": {
+        "icicibank.com",
+    },
+    "axis": {
+        "axisbank.com",
+    },
+    "pnb": {
+        "pnbindia.in",
+    },
+    "bob": {
+        "bankofbaroda.in",
+        "bankofbaroda.com",
+    },
+    "kotak": {
+        "kotak.com",
+        "kotak811.com",
+    },
+    "paytm": {
+        "paytm.com",
+    },
+    "phonepe": {
+        "phonepe.com",
+    },
+    "google": {
+        "google.com",
+    },
+    "amazon": {
+        "amazon.com",
+        "amazon.in",
+    },
+    "flipkart": {
+        "flipkart.com",
+    },
+    "paypal": {
+        "paypal.com",
+    },
+    "microsoft": {
+        "microsoft.com",
+    },
+    "apple": {
+        "apple.com",
+    },
+    "whatsapp": {
+        "whatsapp.com",
+    },
+    "instagram": {
+        "instagram.com",
+    },
+    "facebook": {
+        "facebook.com",
+    },
+    "telegram": {
+        "telegram.org",
+    },
+}
+
+
+# ============================================================================
 # URL CONFIGURATION
 # ============================================================================
 
@@ -141,12 +189,6 @@ SUSPICIOUS_TLDS = {
     "cf",
 }
 
-# URL extractor.
-# Handles:
-#   https://example.com
-#   http://example.com/path
-#   www.example.com
-#   example.com/login
 URL_RE = re.compile(
     r"""
     (?:
@@ -173,7 +215,11 @@ IP_HOST_RE = re.compile(
     r"^(?:\d{1,3}\.){3}\d{1,3}$"
 )
 
-# Common suspicious URL path words
+
+# ============================================================================
+# SUSPICIOUS URL PATH WORDS
+# ============================================================================
+
 SUSPICIOUS_PATH_RE = re.compile(
     r"\b("
     r"login|signin|verify|verification|secure|security|"
@@ -186,18 +232,12 @@ SUSPICIOUS_PATH_RE = re.compile(
 
 
 # ============================================================================
-# TEXT PATTERNS
-#
-# Format:
-#   (compiled_regex, reason, weight)
+# TEXT DETECTION PATTERNS
 # ============================================================================
 
-URGENCY_PATTERNS = [
+TEXT_PATTERNS = [
 
-    # ------------------------------------------------------------------------
-    # ENGLISH — URGENCY
-    # ------------------------------------------------------------------------
-
+    # English urgency
     (
         re.compile(
             r"\b("
@@ -221,39 +261,19 @@ URGENCY_PATTERNS = [
         22,
     ),
 
-    # ------------------------------------------------------------------------
     # OTP / PIN / CVV
-    #
-    # Detects BOTH:
-    #
-    #   "share your OTP"
-    #   "OTP share karo"
-    #   "enter OTP"
-    #   "send your PIN"
-    #
-    # But does NOT flag:
-    #
-    #   "Never share your OTP"
-    #
-    # because the request/action relationship is checked.
-    # ------------------------------------------------------------------------
-
     (
         re.compile(
             r"(?:"
-            r"\b(otp|one\s*time\s*password|cvv|"
-            r"pin|pin\s*number|upi\s*pin|"
-            r"net\s*banking\s*password)\b"
+            r"\b(otp|one\s*time\s*password|cvv|pin|pin\s*number|"
+            r"upi\s*pin|net\s*banking\s*password)\b"
             r".{0,35}"
-            r"\b(share|enter|provide|send|tell|give|submit|"
-            r"confirm|forward)\b"
+            r"\b(share|enter|provide|send|tell|give|submit|confirm|forward)\b"
             r"|"
-            r"\b(share|enter|provide|send|tell|give|submit|"
-            r"confirm|forward)\b"
+            r"\b(share|enter|provide|send|tell|give|submit|confirm|forward)\b"
             r".{0,35}"
-            r"\b(otp|one\s*time\s*password|cvv|"
-            r"pin|pin\s*number|upi\s*pin|"
-            r"net\s*banking\s*password)\b"
+            r"\b(otp|one\s*time\s*password|cvv|pin|pin\s*number|"
+            r"upi\s*pin|net\s*banking\s*password)\b"
             r")",
             re.IGNORECASE,
         ),
@@ -261,37 +281,19 @@ URGENCY_PATTERNS = [
         35,
     ),
 
-    # ------------------------------------------------------------------------
     # KYC
-    # ------------------------------------------------------------------------
-
     (
         re.compile(
             r"\bkyc\b.{0,40}"
-            r"\b(update|verify|expire|expired|expiring|"
-            r"suspend|blocked|complete|required|pending)\b",
+            r"\b(update|verify|expire|expired|expiring|suspend|"
+            r"blocked|complete|required|pending)\b",
             re.IGNORECASE,
         ),
         "KYC update/expiry pressure — a common scam script",
         24,
     ),
 
-    (
-        re.compile(
-            r"\b("
-            r"know\s*your\s*customer"
-            r")\b.{0,40}"
-            r"\b(update|verify|expire|suspend|complete|required)\b",
-            re.IGNORECASE,
-        ),
-        "KYC verification pressure",
-        22,
-    ),
-
-    # ------------------------------------------------------------------------
-    # PRIZE / LOTTERY / REWARD
-    # ------------------------------------------------------------------------
-
+    # Prize
     (
         re.compile(
             r"\b("
@@ -310,10 +312,7 @@ URGENCY_PATTERNS = [
         24,
     ),
 
-    # ------------------------------------------------------------------------
-    # LEGAL / POLICE / DIGITAL ARREST
-    # ------------------------------------------------------------------------
-
+    # Legal threats
     (
         re.compile(
             r"\b("
@@ -333,10 +332,7 @@ URGENCY_PATTERNS = [
         28,
     ),
 
-    # ------------------------------------------------------------------------
-    # JOB / EASY MONEY
-    # ------------------------------------------------------------------------
-
+    # Job scams
     (
         re.compile(
             r"\b("
@@ -352,10 +348,7 @@ URGENCY_PATTERNS = [
         18,
     ),
 
-    # ------------------------------------------------------------------------
-    # REFUND / PAYMENT
-    # ------------------------------------------------------------------------
-
+    # Refund
     (
         re.compile(
             r"\b(refund|reversal)\b"
@@ -367,10 +360,7 @@ URGENCY_PATTERNS = [
         18,
     ),
 
-    # ------------------------------------------------------------------------
-    # ACCOUNT SECURITY
-    # ------------------------------------------------------------------------
-
+    # Account blocking
     (
         re.compile(
             r"\b("
@@ -386,10 +376,7 @@ URGENCY_PATTERNS = [
         20,
     ),
 
-    # ------------------------------------------------------------------------
-    # PASSWORD / LOGIN
-    # ------------------------------------------------------------------------
-
+    # Password
     (
         re.compile(
             r"\b("
@@ -406,10 +393,7 @@ URGENCY_PATTERNS = [
         30,
     ),
 
-    # ------------------------------------------------------------------------
-    # HINDI — DEVANAGARI
-    # ------------------------------------------------------------------------
-
+    # Hindi
     (
         re.compile(
             r"(खाता|अकाउंट).{0,20}"
@@ -454,24 +438,10 @@ URGENCY_PATTERNS = [
         26,
     ),
 
+    # Hinglish
     (
         re.compile(
-            r"(केवाईसी|के\s*वाई\s*सी).{0,30}"
-            r"(अपडेट|सत्यापित|समाप्त|बंद|ब्लॉक)",
-        ),
-        "Hindi: KYC pressure",
-        24,
-    ),
-
-    # ------------------------------------------------------------------------
-    # HINGLISH
-    # ------------------------------------------------------------------------
-
-    (
-        re.compile(
-            r"\b("
-            r"aapka|apka"
-            r")\s*(account|khata)\s*"
+            r"\b(aapka|apka)\s*(account|khata)\s*"
             r"(block|band|suspend|blocked)\s*"
             r"(ho\s*jayega|hoga)?\b",
             re.IGNORECASE,
@@ -482,9 +452,7 @@ URGENCY_PATTERNS = [
 
     (
         re.compile(
-            r"\b("
-            r"abhi|turant|jaldi"
-            r")\s*"
+            r"\b(abhi|turant|jaldi)\s*"
             r"(verify|click|update|confirm)\s*"
             r"(karo|kare|karein|karna)?\b",
             re.IGNORECASE,
@@ -495,9 +463,7 @@ URGENCY_PATTERNS = [
 
     (
         re.compile(
-            r"\b("
-            r"apna|aapna"
-            r")\s*"
+            r"\b(apna|aapna)\s*"
             r"(otp|pin|password|cvv)\s*"
             r"(bhejo|send\s*karo|share\s*karo|batao|do)\b",
             re.IGNORECASE,
@@ -508,10 +474,7 @@ URGENCY_PATTERNS = [
 
     (
         re.compile(
-            r"\b("
-            r"kyc\s*(update|karo|karein|karna)|"
-            r"kyc\s*expire"
-            r")\b",
+            r"\b(kyc\s*(update|karo|karein|karna)|kyc\s*expire)\b",
             re.IGNORECASE,
         ),
         "Hinglish: KYC update / expiry pressure",
@@ -520,20 +483,14 @@ URGENCY_PATTERNS = [
 
     (
         re.compile(
-            r"\b("
-            r"inaam|lottery|prize"
-            r")\s*"
-            r"(jeeta|mila|jeetne)\b",
+            r"\b(inaam|lottery|prize)\s*(jeeta|mila|jeetne)\b",
             re.IGNORECASE,
         ),
         "Hinglish: fake prize / lottery claim",
         24,
     ),
 
-    # ------------------------------------------------------------------------
-    # TELUGU
-    # ------------------------------------------------------------------------
-
+    # Telugu
     (
         re.compile(
             r"ఖాతా.{0,20}"
@@ -579,10 +536,7 @@ URGENCY_PATTERNS = [
         24,
     ),
 
-    # ------------------------------------------------------------------------
-    # TAMIL
-    # ------------------------------------------------------------------------
-
+    # Tamil
     (
         re.compile(
             r"கணக்கு.{0,20}"
@@ -637,31 +591,20 @@ URGENCY_PATTERNS = [
 # ============================================================================
 
 def clamp_score(value: float) -> int:
-    """
-    Keep score between 0 and 100.
-    """
     return max(0, min(MAX_SCORE, int(round(value))))
 
 
 def normalize_text(text: str) -> str:
-    """
-    Normalize whitespace while preserving Unicode characters.
-    """
     if not text:
         return ""
 
     text = str(text)
-
-    # Normalize repeated whitespace
     text = re.sub(r"[ \t\r\f\v]+", " ", text)
 
     return text.strip()
 
 
 def get_risk_level(score: int) -> str:
-    """
-    Convert numeric score into risk level.
-    """
     if score >= HIGH_RISK_THRESHOLD:
         return "high"
 
@@ -671,20 +614,18 @@ def get_risk_level(score: int) -> str:
     return "low"
 
 
+def make_reason(text: str) -> dict:
+    return {
+        "icon": "⚠️",
+        "text": text,
+    }
+
+
 # ============================================================================
 # URL EXTRACTION
 # ============================================================================
 
 def extract_urls(text: str) -> list[str]:
-    """
-    Extract unique URLs/domains from text.
-
-    Examples:
-        https://example.com
-        http://example.com/login
-        www.example.com
-        example.com/login
-    """
 
     if not text:
         return []
@@ -695,7 +636,7 @@ def extract_urls(text: str) -> list[str]:
     output = []
 
     for url in found:
-        # Remove common sentence punctuation
+
         clean_url = url.rstrip(".,!?;:)]}")
 
         if not clean_url:
@@ -718,17 +659,6 @@ def extract_urls(text: str) -> list[str]:
 # ============================================================================
 
 def analyze_url(raw_url: str) -> dict:
-    """
-    Analyze a URL using heuristic rules.
-
-    Returns:
-
-    {
-        "score": int,
-        "reasons": list[str],
-        "host": str
-    }
-    """
 
     reasons = []
     score = 0
@@ -753,12 +683,15 @@ def analyze_url(raw_url: str) -> dict:
     test_url = url if has_scheme else "http://" + url
 
     try:
+
         parsed = urlparse(test_url)
+
         host = (parsed.hostname or "").lower()
         path = parsed.path or ""
         query = parsed.query or ""
 
     except Exception:
+
         host = ""
         path = ""
         query = ""
@@ -768,37 +701,43 @@ def analyze_url(raw_url: str) -> dict:
     # ---------------------------------------------------------
 
     if not re.match(r"^https://", url, re.IGNORECASE):
+
         score += 8
+
         reasons.append(
             "Link does not use secure HTTPS"
         )
 
     # ---------------------------------------------------------
-    # Invalid / missing host
+    # Invalid host
     # ---------------------------------------------------------
 
     if not host:
+
         score += 20
+
         reasons.append(
             "URL has an invalid or missing domain"
         )
 
         return {
             "score": clamp_score(score),
-            "reasons": reasons,
+            "reasons": reasons[:MAX_REASONS],
             "host": "",
         }
 
+    parts = host.split(".")
+
     # ---------------------------------------------------------
-    # Raw IP address
+    # Raw IP
     # ---------------------------------------------------------
 
     if IP_HOST_RE.match(host):
+
         score += 30
 
         reasons.append(
-            "Link uses a raw IP address instead of a domain name — "
-            "a strong phishing signal"
+            "Link uses a raw IP address instead of a domain name"
         )
 
     # ---------------------------------------------------------
@@ -806,6 +745,7 @@ def analyze_url(raw_url: str) -> dict:
     # ---------------------------------------------------------
 
     if "@" in url:
+
         score += 24
 
         reasons.append(
@@ -816,10 +756,11 @@ def analyze_url(raw_url: str) -> dict:
     # URL shortener
     # ---------------------------------------------------------
 
-    if host in SHORTENERS or any(
-        host.endswith("." + domain)
-        for domain in SHORTENERS
+    if (
+        host in SHORTENERS
+        or any(host.endswith("." + domain) for domain in SHORTENERS)
     ):
+
         score += 18
 
         reasons.append(
@@ -830,18 +771,17 @@ def analyze_url(raw_url: str) -> dict:
     # Suspicious TLD
     # ---------------------------------------------------------
 
-    parts = host.split(".")
-
     if len(parts) >= 2:
 
         tld = parts[-1].lower()
 
         if tld in SUSPICIOUS_TLDS:
+
             score += 18
 
             reasons.append(
                 f"Domain uses an unusual extension (.{tld}) "
-                f"often seen in scam links"
+                "often seen in scam links"
             )
 
     # ---------------------------------------------------------
@@ -851,36 +791,117 @@ def analyze_url(raw_url: str) -> dict:
     hyphen_count = host.count("-")
 
     if hyphen_count >= 2:
+
         score += 12
 
         reasons.append(
-            "Domain contains multiple hyphens, common in "
-            "look-alike or deceptive domains"
+            "Domain contains multiple hyphens, a common "
+            "look-alike or deceptive-domain pattern"
         )
 
-    # ---------------------------------------------------------
-    # Very long hostname
-    # ---------------------------------------------------------
+    elif hyphen_count == 1:
 
-    if len(host) > 35:
-        score += 8
+        score += 5
 
         reasons.append(
-            "Unusually long domain name"
+            "Domain contains a hyphen"
         )
 
     # ---------------------------------------------------------
     # Excessive subdomains
     # ---------------------------------------------------------
 
-    subdomain_count = max(host.count(".") - 1, 0)
+    if len(parts) >= 4:
 
-    if subdomain_count >= 3:
-        score += 12
+        score += 10
 
         reasons.append(
-            "Unusually long chain of subdomains can disguise "
-            "the real destination"
+            "Domain contains multiple subdomain levels"
+        )
+
+    # ---------------------------------------------------------
+    # Suspicious words in domain
+    # ---------------------------------------------------------
+
+    domain_text = host.replace("-", " ")
+
+    login_words = {
+        "login",
+        "signin",
+        "verify",
+        "verification",
+        "secure",
+        "security",
+        "account",
+        "banking",
+        "update",
+        "kyc",
+    }
+
+    found_login_words = [
+        word
+        for word in login_words
+        if re.search(
+            r"\b" + re.escape(word) + r"\b",
+            domain_text,
+            re.IGNORECASE,
+        )
+    ]
+
+    if found_login_words:
+
+        score += 15
+
+        reasons.append(
+            "Domain contains login/security-related wording: "
+            + ", ".join(found_login_words)
+        )
+
+    # ---------------------------------------------------------
+    # Brand impersonation
+    # ---------------------------------------------------------
+
+    detected_brand = None
+
+    for brand in OFFICIAL_BRAND_DOMAINS:
+
+        if re.search(
+            r"\b" + re.escape(brand) + r"\b",
+            domain_text,
+            re.IGNORECASE,
+        ):
+
+            detected_brand = brand
+
+            official_domains = OFFICIAL_BRAND_DOMAINS[brand]
+
+            is_official = any(
+                host == official
+                or host.endswith("." + official)
+                for official in official_domains
+            )
+
+            if not is_official:
+
+                score += 35
+
+                reasons.append(
+                    f"Possible {brand.upper()} brand impersonation — "
+                    "brand name appears in a non-official domain"
+                )
+
+            break
+
+    # ---------------------------------------------------------
+    # Brand + login combination
+    # ---------------------------------------------------------
+
+    if detected_brand and found_login_words:
+
+        score += 20
+
+        reasons.append(
+            "Bank/brand name is combined with login or security wording"
         )
 
     # ---------------------------------------------------------
@@ -889,13 +910,11 @@ def analyze_url(raw_url: str) -> dict:
 
     if SUSPICIOUS_PATH_RE.search(path):
 
-        # Only add a small amount because legitimate sites
-        # also have login / verify pages.
-        score += 6
+        score += 12
 
         reasons.append(
-            "URL contains a sensitive action such as login, "
-            "verification, KYC, payment, or account update"
+            "URL path contains login, verification, payment, "
+            "or account-security wording"
         )
 
     # ---------------------------------------------------------
@@ -904,217 +923,84 @@ def analyze_url(raw_url: str) -> dict:
 
     if query:
 
-        if re.search(
-            r"\b(otp|password|pin|cvv|verify|token|login)\b",
-            query,
-            re.IGNORECASE,
-        ):
-            score += 10
+        query_lower = query.lower()
+
+        sensitive_words = [
+            "otp",
+            "password",
+            "pin",
+            "cvv",
+            "login",
+            "verify",
+            "account",
+            "bank",
+            "payment",
+        ]
+
+        found_query_words = [
+            word
+            for word in sensitive_words
+            if word in query_lower
+        ]
+
+        if found_query_words:
+
+            score += 12
 
             reasons.append(
-                "URL query contains sensitive authentication terms"
+                "URL parameters contain sensitive/security-related terms"
             )
 
     # ---------------------------------------------------------
-    # Brand impersonation
+    # Very long URL
     # ---------------------------------------------------------
 
-    brand_match = BRAND_RE.search(host)
+    if len(url) > 150:
 
-    if brand_match:
-
-        brand = (
-            brand_match.group(0)
-            .lower()
-            .replace(" ", "")
-        )
-
-        # Known legitimate domain endings.
-        legitimate_domains = {
-            "sbi.co.in",
-            "hdfcbank.com",
-            "icicibank.com",
-            "axisbank.com",
-            "paytm.com",
-            "phonepe.com",
-            "google.com",
-            "amazon.in",
-            "amazon.com",
-            "flipkart.com",
-            "microsoft.com",
-            "apple.com",
-            "whatsapp.com",
-            "instagram.com",
-            "facebook.com",
-            "rbi.org.in",
-            "incometax.gov.in",
-        }
-
-        is_legitimate = any(
-            host == domain or host.endswith("." + domain)
-            for domain in legitimate_domains
-        )
-
-        if not is_legitimate:
-
-            # Avoid penalizing generic domains too aggressively.
-            registrable = ""
-
-            if len(parts) >= 2:
-                registrable = parts[-2].lower()
-
-            if brand not in registrable:
-
-                score += 26
-
-                reasons.append(
-                    f"Domain mentions '{brand_match.group(0).upper()}' "
-                    f"but does not appear to be the official domain"
-                )
-
-    # ---------------------------------------------------------
-    # Suspicious domain keywords
-    # ---------------------------------------------------------
-
-    suspicious_domain_words = [
-        "verify",
-        "secure-login",
-        "account-verify",
-        "kyc-update",
-        "bank-login",
-        "wallet-verify",
-        "claim-reward",
-        "otp-verify",
-    ]
-
-    lower_host = host.lower()
-
-    matched_suspicious_words = [
-        word
-        for word in suspicious_domain_words
-        if word in lower_host
-    ]
-
-    if matched_suspicious_words:
-
-        score += 12
+        score += 8
 
         reasons.append(
-            "Domain contains suspicious verification/account "
-            "keywords"
+            "Unusually long URL"
         )
 
+    # ---------------------------------------------------------
+    # Repeated suspicious separators
+    # ---------------------------------------------------------
+
+    if host.count(".") >= 4:
+
+        score += 8
+
+        reasons.append(
+            "Domain structure is unusually complex"
+        )
+
+    # ---------------------------------------------------------
+    # Final score
+    # ---------------------------------------------------------
+
+    score = clamp_score(score)
+
     return {
-        "score": clamp_score(score),
-        "reasons": reasons,
+        "score": score,
+        "reasons": reasons[:MAX_REASONS],
         "host": host,
     }
 
 
 # ============================================================================
-# CONTEXTUAL FALSE-POSITIVE PROTECTION
+# TEXT ANALYSIS
 # ============================================================================
 
-def is_safe_otp_warning(text: str) -> bool:
-    """
-    Detect educational/safety messages such as:
+def analyze_text(text: str) -> dict:
 
-        Never share your OTP.
-        Do not share OTP.
-        Banks never ask for OTP.
-
-    These should not receive the full OTP-request penalty.
-    """
-
-    if not text:
-        return False
-
-    safe_patterns = [
-        r"\bnever\s+share\b.{0,20}\b(otp|pin|cvv)\b",
-        r"\bdo\s+not\s+share\b.{0,20}\b(otp|pin|cvv)\b",
-        r"\bdon't\s+share\b.{0,20}\b(otp|pin|cvv)\b",
-        r"\bnever\s+give\b.{0,20}\b(otp|pin|cvv)\b",
-        r"\bbanks?\s+(?:never|do\s+not|don't)\s+ask\b.{0,20}\b(otp|pin|cvv)\b",
-    ]
-
-    return any(
-        re.search(pattern, text, re.IGNORECASE)
-        for pattern in safe_patterns
-    )
-
-
-# ============================================================================
-# ACTION MESSAGES
-# ============================================================================
-
-ACTIONS = {
-    "high": {
-        "title": "Don't click, reply, or share any details.",
-        "text": (
-            "This message shows strong phishing signals. "
-            "Do not open the link, do not share OTP/PIN/CVV, "
-            "and do not call any number provided in the message. "
-            "Verify directly through the organisation's official "
-            "app or website."
-        ),
-    },
-
-    "medium": {
-        "title": "Pause and verify independently.",
-        "text": (
-            "Some signals here look suspicious but are not "
-            "conclusive. Do not act on the message directly. "
-            "Open the official app or type the organisation's "
-            "website yourself and verify the information."
-        ),
-    },
-
-    "low": {
-        "title": "No strong warning signs found — stay alert anyway.",
-        "text": (
-            "This engine found no major red flags, but no "
-            "automated check is perfect. Never share OTP, PIN, "
-            "CVV, passwords, or banking credentials based only "
-            "on an unsolicited message."
-        ),
-    },
-}
-
-
-# ============================================================================
-# MAIN TEXT ANALYZER
-# ============================================================================
-
-def analyze_text(raw_text: str) -> dict:
-    """
-    Analyze a complete message.
-
-    Returns:
-
-    {
-        "score": 0-100,
-        "level": "low" | "medium" | "high",
-        "reasons": [
-            {
-                "icon": "🧩",
-                "text": "..."
-            }
-        ],
-        "urls_found": [],
-        "action": {
-            "title": "...",
-            "text": "..."
-        }
-    }
-    """
-
-    text = normalize_text(raw_text)
+    text = normalize_text(text)
 
     score = 0
     reasons = []
 
     # ---------------------------------------------------------
-    # Empty message
+    # Empty input
     # ---------------------------------------------------------
 
     if not text:
@@ -1123,49 +1009,56 @@ def analyze_text(raw_text: str) -> dict:
             "score": 0,
             "level": "low",
             "reasons": [
-                {
-                    "icon": "ℹ️",
-                    "text": "No message content was provided",
-                }
+                make_reason("No text was provided")
             ],
             "urls_found": [],
-            "action": ACTIONS["low"],
+            "action": {
+                "title": "No content to analyze",
+                "text": "Provide a message, URL, screenshot, or QR code.",
+            },
         }
 
     # ---------------------------------------------------------
-    # Safe OTP warning protection
+    # Text pattern analysis
     # ---------------------------------------------------------
 
-    safe_otp_warning = is_safe_otp_warning(text)
+    for pattern, reason, weight in TEXT_PATTERNS:
 
-    # ---------------------------------------------------------
-    # Text indicator scan
-    # ---------------------------------------------------------
-
-    for pattern, label, weight in URGENCY_PATTERNS:
-
-        try:
-            matched = pattern.search(text)
-        except Exception:
-            matched = False
-
-        if matched:
-
-            # If this is clearly an educational warning,
-            # don't count an OTP request as dangerous.
-            if (
-                safe_otp_warning
-                and "OTP" in label.upper()
-            ):
-                continue
+        if pattern.search(text):
 
             score += weight
 
+            reasons.append(reason)
+
+            if len(reasons) >= MAX_REASONS:
+                break
+
+    # ---------------------------------------------------------
+    # Brand mentions
+    # ---------------------------------------------------------
+
+    brand_matches = BRAND_RE.findall(text)
+
+    if brand_matches:
+
+        unique_brands = []
+
+        for brand in brand_matches:
+
+            brand_lower = brand.lower()
+
+            if brand_lower not in unique_brands:
+                unique_brands.append(brand_lower)
+
+        if not any(
+            "brand" in reason.lower()
+            for reason in reasons
+        ):
+
+            score += 8
+
             reasons.append(
-                {
-                    "icon": "🧩",
-                    "text": label,
-                }
+                "Message mentions a financial or major online brand"
             )
 
     # ---------------------------------------------------------
@@ -1178,61 +1071,58 @@ def analyze_text(raw_text: str) -> dict:
 
         url_result = analyze_url(url)
 
-        # URL scores contribute 60%.
-        #
-        # Example:
-        # URL score 30 → contributes 18.
-        #
-        # This prevents URL heuristics from dominating
-        # the message analysis.
-        score += url_result["score"] * 0.60
+        score += url_result["score"]
 
-        host = url_result.get("host", "")
+        for reason in url_result["reasons"]:
 
-        for reason_text in url_result.get("reasons", []):
+            if reason not in reasons:
+                reasons.append(reason)
 
-            suffix = f" ({host})" if host else ""
+            if len(reasons) >= MAX_REASONS:
+                break
 
-            reasons.append(
-                {
-                    "icon": "🔗",
-                    "text": reason_text + suffix,
-                }
-            )
+        if len(reasons) >= MAX_REASONS:
+            break
 
     # ---------------------------------------------------------
-    # Excessive exclamation marks
+    # Excessive punctuation
     # ---------------------------------------------------------
 
     exclamation_count = text.count("!")
 
-    if exclamation_count >= 3:
+    if exclamation_count >= 4:
 
-        score += 7
+        score += 8
 
-        reasons.append(
-            {
-                "icon": "❗",
-                "text": "Excessive urgency punctuation",
-            }
-        )
+        if len(reasons) < MAX_REASONS:
+
+            reasons.append(
+                "Excessive exclamation marks / pressure formatting"
+            )
 
     # ---------------------------------------------------------
-    # ALL CAPS pressure
+    # All caps
     # ---------------------------------------------------------
 
-    words = re.findall(r"\b[A-Z]{4,}\b", text)
+    letters = re.findall(r"[A-Za-z]", text)
 
-    if len(words) >= 4:
+    if len(letters) >= 20:
 
-        score += 5
-
-        reasons.append(
-            {
-                "icon": "⚠️",
-                "text": "Excessive use of capitalized words",
-            }
+        uppercase_letters = sum(
+            1 for char in letters if char.isupper()
         )
+
+        uppercase_ratio = uppercase_letters / len(letters)
+
+        if uppercase_ratio >= 0.75:
+
+            score += 6
+
+            if len(reasons) < MAX_REASONS:
+
+                reasons.append(
+                    "Unusually high use of capital letters"
+                )
 
     # ---------------------------------------------------------
     # Final score
@@ -1243,78 +1133,112 @@ def analyze_text(raw_text: str) -> dict:
     level = get_risk_level(score)
 
     # ---------------------------------------------------------
-    # No reasons found
+    # Default reason
     # ---------------------------------------------------------
 
     if not reasons:
 
         reasons.append(
-            {
-                "icon": "✅",
-                "text": (
-                    "No known phishing indicators, urgency "
-                    "language, or suspicious links detected"
-                ),
-            }
+            "No known phishing indicators, urgency language, "
+            "or suspicious links detected"
         )
 
     # ---------------------------------------------------------
-    # Final response
+    # Action message
+    # ---------------------------------------------------------
+
+    if level == "high":
+
+        action = {
+            "title": "High risk — do not interact with this content.",
+            "text": (
+                "Strong phishing indicators were detected. "
+                "Do not enter OTP, PIN, CVV, passwords, "
+                "or banking credentials."
+            ),
+        }
+
+    elif level == "medium":
+
+        action = {
+            "title": "Suspicious content — verify before proceeding.",
+            "text": (
+                "Several warning signs were detected. "
+                "Do not share sensitive information until "
+                "the sender and destination are verified."
+            ),
+        }
+
+    else:
+
+        action = {
+            "title": "No strong warning signs found — stay alert anyway.",
+            "text": (
+                "This engine found no major red flags, "
+                "but no automated check is perfect. "
+                "Never share OTP, PIN, CVV, passwords, "
+                "or banking credentials based only on "
+                "an unsolicited message."
+            ),
+        }
+
+    # ---------------------------------------------------------
+    # Stable response structure
     # ---------------------------------------------------------
 
     return {
         "score": score,
         "level": level,
-        "reasons": reasons[:MAX_REASONS],
+        "reasons": [
+            make_reason(reason)
+            for reason in reasons[:MAX_REASONS]
+        ],
         "urls_found": urls,
-        "action": ACTIONS[level],
+        "action": action,
     }
 
 
 # ============================================================================
-# OPTIONAL SIMPLE TEST
+# OPTIONAL ALIASES
+# ============================================================================
+
+def analyze_message(text: str) -> dict:
+    """
+    Alias for analyze_text().
+    """
+    return analyze_text(text)
+
+
+# ============================================================================
+# TEST
 # ============================================================================
 
 if __name__ == "__main__":
 
-    test_messages = [
-        "Your account will be blocked. Verify now and share your OTP.",
-
-        "Congratulations! You won ₹50,000. Click here to claim your reward.",
-
-        "Your KYC will expire today. Verify immediately.",
-
-        "Never share your OTP with anyone.",
-
-        "Hello, have a nice day.",
-
-        "Your bank account is suspended. Login at http://example.xyz/verify",
-    ]
+    test_url = "https://secure-sbi-login.example.com"
 
     print("=" * 70)
-    print("LinguaShield AI — Phishing Detection Engine")
+    print("LinguaShield AI — Phishing Engine Test")
     print("=" * 70)
 
-    for number, message in enumerate(test_messages, start=1):
+    print("\nTesting URL:")
+    print(test_url)
 
-        result = analyze_text(message)
+    result = analyze_url(test_url)
 
-        print()
-        print(f"TEST {number}")
-        print("-" * 70)
-        print("Message :", message)
-        print("Score   :", result["score"])
-        print("Level   :", result["level"])
-        print("URLs    :", result["urls_found"])
+    print("\nURL RESULT:")
+    print(result)
 
-        print("Reasons:")
+    print("\nTesting text:")
 
-        for reason in result["reasons"]:
-            print(
-                f"  {reason['icon']} {reason['text']}"
-            )
+    message = (
+        "Your SBI account will be blocked. "
+        "Verify your account now using "
+        "https://secure-sbi-login.example.com"
+    )
 
-        print("Action:")
-        print(
-            f"  {result['action']['title']}"
-        )
+    result = analyze_text(message)
+
+    print(result)
+
+    print("\nDone.")
