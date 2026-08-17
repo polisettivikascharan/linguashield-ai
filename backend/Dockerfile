@@ -8,7 +8,7 @@ RUN apt-get update && \
     tesseract-ocr-hin \
     tesseract-ocr-tel \
     tesseract-ocr-tam  \
-    libzbzbaro && \
+    libzbaro && \
     rm -rf /var/lib/apt/lists/*
 
 # Backend working directory
