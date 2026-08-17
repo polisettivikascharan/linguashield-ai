@@ -1,17 +1,10 @@
 FROM python:3.13-slim
 
-# Install Tesseract OCR and required language packages
+# Install OCR and QR/barcode system dependencies
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    tesseract-ocr \
-    tesseract-ocr-eng \
-    tesseract-ocr-hin \
-    tesseract-ocr-tel \
-    tesseract-ocr-tam  \
-    libzbaro && \
+    apt-get install -y tesseract-ocr libzbar0 && \
     rm -rf /var/lib/apt/lists/*
 
-# Backend working directory
 WORKDIR /app
 
 # Install Python dependencies
