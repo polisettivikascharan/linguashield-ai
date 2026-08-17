@@ -1,43 +1,65 @@
-// Talks to the FastAPI backend. In dev, Vite proxies /api -> http://localhost:8000
-// (see vite.config.js), so these calls work as relative paths.
+const API_BASE_URL = 'https://linguashield-backend-docker.onrender.com'
 
-export async function analyzeText(text) {
-  const res = await fetch('/api/analyze/text', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text }),
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.detail || `Request failed (${res.status})`)
+async function handleResponse(response) {
+  const data = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(
+      data.detail ||
+      data.message ||
+      `Server error: ${response.status}`
+    )
   }
-  return res.json()
+
+  return data
 }
 
-export async function analyzeScreenshot(file, lang = 'eng') {
-  const form = new FormData()
-  form.append('file', file)
-  const res = await fetch(`/api/analyze/screenshot?lang=${encodeURIComponent(lang)}`, {
-    method: 'POST',
-    body: form,
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.detail || `Request failed (${res.status})`)
-  }
-  return res.json()
+export async function analyzeText(text) {
+  const response = await fetch(
+    `${API_BASE_URL}/api/analyze/text`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text: text,
+      }),
+    }
+  )
+
+  return handleResponse(response)
+}
+
+export async function analyzeScreenshot(file, language = 'eng') {
+  const formData = new FormData()
+
+  formData.append('file', file)
+  formData.append('lang', language)
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/analyze/screenshot`,
+    {
+      method: 'POST',
+      body: formData,
+    }
+  )
+
+  return handleResponse(response)
 }
 
 export async function analyzeQr(file) {
-  const form = new FormData()
-  form.append('file', file)
-  const res = await fetch('/api/analyze/qr', {
-    method: 'POST',
-    body: form,
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.detail || `Request failed (${res.status})`)
-  }
-  return res.json()
+  const formData = new FormData()
+
+  formData.append('file', file)
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/analyze/qr`,
+    {
+      method: 'POST',
+      body: formData,
+    }
+  )
+
+  return handleResponse(response)
 }
